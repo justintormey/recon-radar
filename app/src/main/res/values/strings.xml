@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RECON RADAR</string>
+    <string name="scanning">SCANNING</string>
+    <string name="paused">PAUSED</string>
+    <string name="ready">READY</string>
+    <string name="btn_scan">SCAN</string>
+    <string name="btn_pause">PAUSE</string>
+    <string name="btn_baseline">SET BASE</string>
+    <string name="btn_clear">CLR BASE</string>
+    <string name="xreal_linked">XREAL:LINKED</string>
+    <string name="xreal_none">XREAL:---</string>
+    <string name="permission_rationale">Recon Radar needs location and Bluetooth access to scan nearby Wi-Fi and BLE signals. All processing is local — nothing leaves your device.</string>
+</resources>

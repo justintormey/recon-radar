@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#FF070707</color>
+    <color name="bg_surface">#FF0E0E0E</color>
+    <color name="bg_card">#FF181818</color>
+
+    <!-- Radar greens -->
+    <color name="radar_green">#FF00FF41</color>
+    <color name="radar_green_dim">#8000FF41</color>
+    <color name="radar_green_faint">#2500FF41</color>
+    <color name="radar_grid">#3000FF41</color>
+
+    <!-- BLE / Bluetooth cyan -->
+    <color name="ble_cyan">#FF00E5FF</color>
+    <color name="ble_cyan_dim">#8000E5FF</color>
+
+    <!-- Signal status -->
+    <color name="signal_known">#FF00FF41</color>
+    <color name="signal_new">#FFFFD700</color>
+    <color name="signal_anomaly">#FFFF3333</color>
+    <color name="signal_gone">#FF444444</color>
+    <color name="signal_tracker">#FFFF00FF</color>
+
+    <!-- HUD chrome -->
+    <color name="hud_text">#FF00FF41</color>
+    <color name="hud_text_dim">#8800FF41</color>
+    <color name="hud_accent">#FFFFD700</color>
+    <color name="hud_alert">#FFFF3333</color>
+    <color name="hud_border">#3500FF41</color>
+
+    <color name="text_primary">#FFD0D0D0</color>
+    <color name="text_secondary">#FF777777</color>
+</resources>
