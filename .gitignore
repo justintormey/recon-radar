@@ -1,0 +1,29 @@
+# Android / Gradle build outputs
+*.iml
+.gradle/
+local.properties
+.idea/
+*.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# APK / AAB artifacts
+*.apk
+*.aab
+
+# Keystore — never commit signing keys
+*.jks
+*.keystore
+keystore.properties
+
+# Proguard mapping (generated per build)
+app/build/
+
+# Kotlin scratch files
+*.kts.scratch
+
+# OS
+.DS_Store
+Thumbs.db
