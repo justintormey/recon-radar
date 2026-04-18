@@ -152,8 +152,9 @@ Copy APK to device, tap to install, allow installation from unknown source when 
 **C2. BLE 15-second expiry**
 1. Note BLE device count
 2. Power off the BLE device
-3. **Expected:** Within ~17 seconds (15s expiry + 2s delivery cycle) the device disappears
-4. **Expected:** Blip turns grey briefly if baseline is set (GONE anomaly)
+3. **Expected:** Within ~17 seconds (15s expiry + 2s delivery cycle) the device disappears from the count
+4. **Expected:** GONE anomaly fires in the ticker (`[GONE] <name> disappeared`) and ANOM counter increments
+5. ⚠️ **Known gap:** Grey blip does NOT appear on radar (gone devices are excluded from the rendered live-device list). Tracked for fix in follow-up issue.
 - Code ref: `BleScanner.scheduleDelivery()` → `deviceMap.entries.removeAll { it.value.timestamp < cutoff }`; cutoff = 15,000ms
 
 **C3. Unnamed BLE device**
@@ -233,7 +234,7 @@ Copy APK to device, tap to install, allow installation from unknown source when 
 
 **E1. Set baseline**
 1. Scan until stable (30+ seconds, W+B counts stable)
-2. Tap **`SET BASELINE`**
+2. Tap **`SET BASE`** (button label in UI)
 3. **Expected:** Status shows `BASELINE SET — N devices`
 4. **Expected:** Bottom HUD bar `BASE:N` matches
 5. **Expected:** All current blips lose their YELLOW (NEW) color — already known
@@ -248,9 +249,9 @@ Copy APK to device, tap to install, allow installation from unknown source when 
 **E3. DEVICE_GONE with 3-miss debounce**
 1. Set baseline with your phone's hotspot active
 2. Turn off the hotspot
-3. **Expected:** No GONE anomaly after 1st or 2nd miss — grey blip NOT shown yet
-4. **Expected:** After 3rd miss (~96 seconds for Wi-Fi at 32s interval; ~6 seconds for BLE at 2s interval), GONE anomaly fires
-5. **Expected:** Blip turns grey on radar
+3. **Expected:** No GONE anomaly after 1st or 2nd miss
+4. **Expected:** After 3rd miss (~96 seconds for Wi-Fi at 32s interval; ~6 seconds for BLE at 2s interval), GONE anomaly fires in ticker: `[GONE] <name> disappeared`
+5. ⚠️ **Known gap:** Grey blip does NOT appear on radar. The anomaly fires correctly in the ticker and ANOM counter; the visual grey blip is missing. Tracked for fix in follow-up issue.
 - Code ref: `SignalBaseline.analyze()` → `goneCandidates[id]` increments to ≥ 3 → `DEVICE_GONE` anomaly
 
 **E4. RSSI_SPIKE anomaly**
@@ -290,7 +291,7 @@ Copy APK to device, tap to install, allow installation from unknown source when 
 - Code ref: `SignalBaseline.saveToPrefs()` + `loadFromPrefs()` via `SharedPreferences`
 
 **E9. Clear baseline**
-1. With a baseline active, tap **`CLEAR`**
+1. With a baseline active, tap **`CLR BASE`** (button label in UI)
 2. **Expected:** Status shows `BASELINE CLEARED`
 3. **Expected:** `BASE:0` in bottom HUD
 4. **Expected:** No more anomaly events (except tracker detection, which is baseline-independent)
@@ -318,7 +319,7 @@ Copy APK to device, tap to install, allow installation from unknown source when 
 | Yellow | New device not in baseline | Set baseline, introduce new device |
 | Red | Anomaly (RSSI spike, open net, rogue AP) | See E4/E6/E7 |
 | Magenta | Known tracker | Bring AirTag/Tile within range |
-| Grey | GONE (3-miss debounce) | Remove baselined device |
+| Grey | GONE (3-miss debounce) | Remove baselined device — ⚠️ grey blip currently not rendered (see E3 note) |
 
 **F4. Pulse ring on flagged devices**
 - **Expected:** Anomalous/tracker blips emit an expanding ring pulse (period ~1.2 seconds)
@@ -443,3 +444,5 @@ Key log tags to watch:
 ---
 
 *Generated from static analysis of commit HEAD on main branch (issue #10 + #11 merged). All test steps trace directly to source code in `app/src/main/java/com/reconradar/app/`.*
+
+*Updated 2026-04-18 (issue #6 research): corrected button labels (SET BASE / CLR BASE), added grey-blip known-gap annotations (C2, E3, F3). See `.agent/research.md` for full static audit.*
