@@ -1,14 +1,17 @@
 package com.reconradar.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.reconradar.app.hud.HudOverlayView
@@ -36,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private var bleDevices = listOf<DetectedDevice>()
     private var allAnomalies = mutableListOf<Anomaly>()
     private var scanning = false
+    private var locationSettingsLaunched = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -128,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         if (!locationManager.isLocationEnabled) {
             scanning = false
             statusText.text = getString(R.string.location_services_off)
-            Toast.makeText(this, getString(R.string.location_services_off), Toast.LENGTH_LONG).show()
+            showLocationServicesDialog()
             return
         }
 
@@ -198,7 +202,32 @@ class MainActivity : AppCompatActivity() {
         hudOverlay.refresh()
     }
 
+    // ── Location Settings Dialog ──────────────────────────────
+    private fun showLocationServicesDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.location_off_dialog_title))
+            .setMessage(getString(R.string.location_off_dialog_message))
+            .setPositiveButton(getString(R.string.location_off_open_settings)) { _, _ ->
+                locationSettingsLaunched = true
+                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            }
+            .setNegativeButton(getString(R.string.location_off_dismiss), null)
+            .show()
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────
+    override fun onResume() {
+        super.onResume()
+        // If user returned from Location Settings, retry scanning automatically.
+        if (locationSettingsLaunched) {
+            locationSettingsLaunched = false
+            val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+            if (locationManager.isLocationEnabled && !scanning) {
+                requestPermissionsAndStart()
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         wifiScanner.stop()

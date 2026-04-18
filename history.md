@@ -108,6 +108,13 @@ Detection uses three layers in priority order:
 - Added `SignalBaselineTest` with 8 unit tests covering: positive detection, known BSSID suppression, different SSID no-trigger, BLE exclusion, blank SSID guard, empty baseline, empty device list, multi-rogue scan, and priority validation
 - `ROGUE_AP` is no longer dead code; enum variant is fully exercised
 
+**2026-04-18 — Add Settings deep link when Location services are OFF (issue #22)**
+- `beginScanning()` now shows an `AlertDialog` (instead of a silent Toast) when `LocationManager.isLocationEnabled` is false
+- Dialog has "OPEN SETTINGS" button that launches `Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)` — sends user directly to the system Location toggle
+- Added `locationSettingsLaunched: Boolean` flag; `onResume()` checks it on return and auto-retries `requestPermissionsAndStart()` if Location is now enabled — zero extra taps required
+- Added 4 string resources: `location_off_dialog_title`, `location_off_dialog_message`, `location_off_open_settings`, `location_off_dismiss`
+- Semver: PATCH (no new API surface, purely UX improvement to existing guard)
+
 **2026-04-18 — Warn user when system Location services are OFF (issue #13)**
 - `MainActivity.beginScanning()` now checks `LocationManager.isLocationEnabled` before starting any scanner
 - If Location toggle is OFF, sets status text to "Enable Location services for Wi-Fi scan" and shows a matching Toast; returns early without starting WifiScanner/BleScanner
