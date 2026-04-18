@@ -101,3 +101,9 @@ Detection uses three layers in priority order:
 - Removed `xrealConnected` from `HudOverlayView`; cleaned up HUD top-bar to phone-only layout
 - Verified Android 14 compatibility: `RECEIVER_NOT_EXPORTED`, BLE permission guards, scan throttle pacing all correct
 - Added `.github/workflows/build-apk.yml` — CI produces `app-debug.apk` artifact on every push to `main`
+
+**2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
+- Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
+- Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)
+- CI was broken: `chmod +x gradlew` and `./gradlew assembleDebug` both failed with file-not-found
+- Pipeline now produces sideloadable debug APKs again; unblocks on-device verification (issue #6)
