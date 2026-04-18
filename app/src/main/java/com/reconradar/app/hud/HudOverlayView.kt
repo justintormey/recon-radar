@@ -18,7 +18,6 @@ class HudOverlayView @JvmOverloads constructor(
 
     private val cGreen    = 0xFF00FF41.toInt()
     private val cGreenDim = 0x7000FF41.toInt()
-    private val cCyan     = 0xFF00E5FF.toInt()
     private val cYellow   = 0xFFFFD700.toInt()
     private val cRed      = 0xFFFF3333.toInt()
     private val cMagenta  = 0xFFFF00FF.toInt()
@@ -45,7 +44,6 @@ class HudOverlayView @JvmOverloads constructor(
     var band5 = 0
     var baselineSize = 0
     var isScanning = false
-    var xrealConnected = false
     var recentAnomalies = listOf<Anomaly>()
 
     fun refresh() = invalidate()
@@ -78,15 +76,9 @@ class HudOverlayView @JvmOverloads constructor(
         val totalStr = "$wifiStr $bleStr"
         c.drawText(totalStr, width - textMain.measureText(totalStr) - 18f, y1, textMain)
 
-        // Second row
-        val y2 = y1 + textDim.textSize + 6f
-
-        // XReal status
-        textDim.color = if (xrealConnected) cGreen else cGreenDim
-        c.drawText(if (xrealConnected) "XREAL:LINKED" else "XREAL:---", 18f, y2, textDim)
-
-        // Anomaly + tracker counts
+        // Second row — anomaly + tracker counts
         if (anomalyCount > 0 || trackerCount > 0) {
+            val y2 = y1 + textDim.textSize + 6f
             val parts = mutableListOf<String>()
             if (trackerCount > 0) parts.add("TRK:$trackerCount")
             if (anomalyCount > 0) parts.add("ANOM:$anomalyCount")

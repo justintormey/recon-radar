@@ -13,7 +13,7 @@ Wi-Fi + BLE signal intelligence radar for Android (Samsung S24). Scans nearby ac
 ## Key Context & Decisions
 
 ### Architecture
-- **Pure Android Presentation API for XReal glasses** — no XREAL SDK, no Unity, no ControlGlasses app required. XReal One Pro registers as an external display via USB-C; the app renders via the standard `Presentation` class.
+- **Phone-only radar UI** — XReal AR display path removed (issue #2). App renders exclusively to the phone screen.
 - **Single-activity design** — `MainActivity` owns all permission lifecycle and orchestrates scanners. No fragments, no Jetpack Compose (Canvas-based custom `View`s for radar performance).
 - **Offline-first, zero permissions creep** — no internet, camera, mic, or storage permissions. Wi-Fi + BLE + fine location only.
 - **`TrackerDetector` as a pure Kotlin object** — no Android dependencies, enabling fast JVM unit tests without a device or emulator.
@@ -40,16 +40,14 @@ Detection uses three layers in priority order:
 
 ## Current Status
 
-🟡 **in-progress** — Core functionality complete; side-loadable APK buildable. XReal HUD support present but not the primary focus per product direction (Justin no longer has XReal glasses).
+🟢 **active** — Phone-only radar UI. XReal AR removed. GitHub Actions CI produces a sideloadable debug APK on every push to `main`. Android 14 compatibility verified (permissions, receiver flags, BLE security guards all in place).
 
 ---
 
 ## Unfinished Work
 
 ### Immediate Next Steps
-- Remove/disable XReal AR view (per product vision — focus on phone-only radar)
-- End-to-end test build on Samsung S24 (Android 14)
-- Verify Wi-Fi scan throttle handling (Android 10+ limits scans to ~4/2 min)
+- On-device verification on Samsung S24 (Android 14) — Wi-Fi scan, BLE scan, tracker detection
 
 ### Future Enhancements
 - Export scan log to local file (no cloud)
@@ -63,7 +61,7 @@ Detection uses three layers in priority order:
 
 - **iOS is not viable** for this tool — iOS blocks Wi-Fi enumeration entirely. Android is the only platform with full public API access.
 - **Root not required** — all functionality uses stock Android APIs.
-- **XReal One Pro compatibility** uses standard Android display output, not a vendor SDK. Any USB-C display-out capable phone should work.
+- **XReal support removed** — the `Presentation` API approach is documented in git history if ever needed again, but `XRealPresentation.kt` is gone from the codebase.
 
 ---
 
@@ -89,3 +87,10 @@ Detection uses three layers in priority order:
 - Added JVM unit tests: `DetectedDeviceTest` (channel, band, open-network, radar math) and `TrackerDetectorTest` (all detection layers)
 - Added `history.md` (this file)
 - Added `testImplementation` dependencies to `app/build.gradle.kts`
+
+**2026-04-17 — XReal removal + sideloadable APK pipeline (issue #2)**
+- Deleted `XRealPresentation.kt` entirely
+- Stripped all XReal state/methods from `MainActivity` (display listener, attach/detach, mirroring calls)
+- Removed `xrealConnected` from `HudOverlayView`; cleaned up HUD top-bar to phone-only layout
+- Verified Android 14 compatibility: `RECEIVER_NOT_EXPORTED`, BLE permission guards, scan throttle pacing all correct
+- Added `.github/workflows/build-apk.yml` — CI produces `app-debug.apk` artifact on every push to `main`

@@ -2,10 +2,8 @@ package com.reconradar.app
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
-import android.view.Display
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
@@ -14,7 +12,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.reconradar.app.hud.HudOverlayView
 import com.reconradar.app.hud.RadarView
-import com.reconradar.app.hud.XRealPresentation
 import com.reconradar.app.model.Anomaly
 import com.reconradar.app.model.DetectedDevice
 import com.reconradar.app.scanner.BleScanner
@@ -33,9 +30,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var wifiScanner: WifiScanner
     private lateinit var bleScanner: BleScanner
     private lateinit var baseline: SignalBaseline
-
-    private var xrealPresentation: XRealPresentation? = null
-    private var displayListener: DisplayManager.DisplayListener? = null
 
     private var wifiDevices = listOf<DetectedDevice>()
     private var bleDevices = listOf<DetectedDevice>()
@@ -75,7 +69,6 @@ class MainActivity : AppCompatActivity() {
         baseline = SignalBaseline(this)
 
         setupButtons()
-        setupXReal()
         requestPermissionsAndStart()
     }
 
@@ -134,7 +127,6 @@ class MainActivity : AppCompatActivity() {
         radarView.startSweep()
         btnScan.text = getString(R.string.btn_pause)
         hudOverlay.isScanning = true
-        xrealPresentation?.setScanning(true)
 
         wifiScanner.start { devices ->
             wifiDevices = devices
@@ -160,7 +152,6 @@ class MainActivity : AppCompatActivity() {
         btnScan.text = getString(R.string.btn_scan)
         hudOverlay.isScanning = false
         hudOverlay.refresh()
-        xrealPresentation?.setScanning(false)
         statusText.text = getString(R.string.paused)
     }
 
@@ -174,12 +165,8 @@ class MainActivity : AppCompatActivity() {
             allAnomalies = allAnomalies.takeLast(60).toMutableList()
         }
 
-        // Update phone radar
         radarView.updateDevices(all, allAnomalies)
         refreshHud(all)
-
-        // Mirror to XReal glasses
-        xrealPresentation?.updateDevices(all, allAnomalies, baseline.size)
 
         // Status line
         val trackers = newAnomalies.count { it.type == Anomaly.Type.KNOWN_TRACKER }
@@ -202,51 +189,11 @@ class MainActivity : AppCompatActivity() {
         hudOverlay.refresh()
     }
 
-    // ── XReal ─────────────────────────────────────────────────
-    private fun setupXReal() {
-        XRealPresentation.findExternalDisplay(this)?.let { attachXReal(it) }
-
-        displayListener = XRealPresentation.registerDisplayListener(
-            this,
-            onConnected = { d -> runOnUiThread { attachXReal(d) } },
-            onDisconnected = { runOnUiThread { detachXReal() } }
-        )
-    }
-
-    private fun attachXReal(display: Display) {
-        xrealPresentation?.dismiss()
-        xrealPresentation = XRealPresentation(this, display).also {
-            it.show()
-            it.setScanning(scanning)
-            val all = wifiDevices + bleDevices
-            if (all.isNotEmpty()) it.updateDevices(all, allAnomalies, baseline.size)
-        }
-        hudOverlay.xrealConnected = true
-        hudOverlay.refresh()
-        statusText.text = "XREAL LINKED"
-    }
-
-    private fun detachXReal() {
-        xrealPresentation?.dismiss()
-        xrealPresentation = null
-        hudOverlay.xrealConnected = false
-        hudOverlay.refresh()
-    }
-
     // ── Lifecycle ─────────────────────────────────────────────
-    override fun onResume() {
-        super.onResume()
-        if (xrealPresentation == null) {
-            XRealPresentation.findExternalDisplay(this)?.let { attachXReal(it) }
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         wifiScanner.stop()
         bleScanner.stop()
         radarView.stopSweep()
-        xrealPresentation?.dismiss()
-        displayListener?.let { XRealPresentation.unregisterDisplayListener(this, it) }
     }
 }
