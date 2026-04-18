@@ -125,6 +125,13 @@ Detection uses three layers in priority order:
 - Added 8 new unit tests covering: stable key non-null, null-for-unnamed, null-for-empty-caps, composite key symmetry, BLE never triggers rogue AP, stable key requires both name+caps
 - Tracker detection NOT affected — operates on manufacturer data + service UUIDs, not MAC
 
+**2026-04-18 — Fix DEVICE_GONE false alarms on BLE MAC rotation (issue #17)**
+- `SignalBaseline.analyze()` previously keyed `goneCandidates` off raw MAC and never consulted the `bleStableIndex` composite re-match in the DEVICE_GONE debounce loop
+- After MAC rotation, old MAC accumulated 3 misses and fired spurious `DEVICE_GONE` even though the physical device was still present under its new MAC
+- Fix: added `compositeMatchedBaselineIds` set populated during the device loop whenever a baseline entry is matched via stable composite key (not primary MAC); union it into `effectiveCurrentIds` before the DEVICE_GONE loop
+- Extracted `compositeMatchedIds()` as a pure companion function (no Android deps) enabling JVM unit tests
+- Added 4 new JVM unit tests: rotated MAC → old baseline ID returned; unnamed device → empty set; primary MAC match skipped; effectiveCurrentIds union prevents false alarm
+
 **2026-04-18 — Fix DEVICE_GONE grey blips not rendered on radar (issue #16)**
 - `RadarView` gains a `goneDevices: List<DetectedDevice>` field populated inside `updateDevices()` from `DEVICE_GONE` anomalies
 - Ghost stubs are de-duplicated by device ID (accumulation buffer can hold many repeated GONE anomalies for the same device)

@@ -238,4 +238,82 @@ class SignalBaselineTest {
         assertNull(SignalBaseline.bleStableKey("<unnamed>", "0000feed"))
         assertNull(SignalBaseline.bleStableKey("", "0000feed"))
     }
+
+    // ── compositeMatchedIds — DEVICE_GONE false-alarm suppression ────────────
+
+    private fun makeStableIndex(entries: List<SignalBaseline.BaselineEntry>): Map<String, SignalBaseline.BaselineEntry> =
+        entries.mapNotNull { e ->
+            SignalBaseline.bleStableKey(e.name, e.capabilities)?.let { key -> key to e }
+        }.toMap()
+
+    @Test
+    fun `compositeMatchedIds returns old baseline ID when BLE MAC has rotated`() {
+        val oldMac = "aa:bb:cc:dd:ee:01"
+        val newMac = "ff:11:22:33:44:55"
+        val serviceUuid = "0000fd6f-0000-1000-8000-00805f9b34fb"
+
+        val entry = blBaselineEntry(oldMac, "Galaxy Buds2", serviceUuid)
+        val baseline = mapOf(oldMac to entry)
+        val stableIndex = makeStableIndex(listOf(entry))
+        val liveDevices = listOf(bleDevice(newMac, "Galaxy Buds2", serviceUuid))
+
+        val matched = SignalBaseline.compositeMatchedIds(liveDevices, baseline, stableIndex)
+
+        assertTrue("Old baseline MAC should be in composite matched set", oldMac in matched)
+    }
+
+    @Test
+    fun `compositeMatchedIds returns empty set when live BLE device has no stable key`() {
+        // Unnamed device — bleStableKey returns null, so no composite match possible
+        val oldMac = "aa:bb:cc:dd:ee:01"
+        val newMac = "ff:11:22:33:44:55"
+
+        val entry = blBaselineEntry(oldMac, "Galaxy Buds2", "0000fd6f-0000-1000-8000-00805f9b34fb")
+        val baseline = mapOf(oldMac to entry)
+        val stableIndex = makeStableIndex(listOf(entry))
+        val liveDevices = listOf(bleDevice(newMac, "<unnamed>", ""))  // no stable key
+
+        val matched = SignalBaseline.compositeMatchedIds(liveDevices, baseline, stableIndex)
+
+        assertTrue("No composite match for unnamed device", matched.isEmpty())
+    }
+
+    @Test
+    fun `compositeMatchedIds skips device that already matches via primary MAC`() {
+        val mac = "aa:bb:cc:dd:ee:01"
+        val serviceUuid = "0000fd6f-0000-1000-8000-00805f9b34fb"
+
+        val entry = blBaselineEntry(mac, "Galaxy Buds2", serviceUuid)
+        val baseline = mapOf(mac to entry)                  // primary key present
+        val stableIndex = makeStableIndex(listOf(entry))
+        val liveDevices = listOf(bleDevice(mac, "Galaxy Buds2", serviceUuid))  // same MAC
+
+        val matched = SignalBaseline.compositeMatchedIds(liveDevices, baseline, stableIndex)
+
+        // Primary match — composite path should be skipped, result is empty
+        assertTrue("Primary MAC match should not appear in composite matched set", matched.isEmpty())
+    }
+
+    @Test
+    fun `effectiveCurrentIds union of compositeMatchedIds prevents DEVICE_GONE false alarm`() {
+        // Simulate: baseline has old MAC; live scan shows rotated MAC with same name+caps.
+        // Without the union, old MAC would accumulate misses → DEVICE_GONE after 3 scans.
+        // With the union, old MAC is in effectiveCurrentIds → miss counter stays at zero.
+        val oldMac = "aa:bb:cc:dd:ee:01"
+        val newMac = "ff:11:22:33:44:55"
+        val serviceUuid = "0000fd6f-0000-1000-8000-00805f9b34fb"
+
+        val entry = blBaselineEntry(oldMac, "Galaxy Buds2", serviceUuid)
+        val baseline = mapOf(oldMac to entry)
+        val stableIndex = makeStableIndex(listOf(entry))
+        val liveDevices = listOf(bleDevice(newMac, "Galaxy Buds2", serviceUuid))
+
+        val currentIds = liveDevices.map { it.id }.toSet()        // {newMac}
+        val compositeIds = SignalBaseline.compositeMatchedIds(liveDevices, baseline, stableIndex)
+        val effectiveCurrentIds = currentIds + compositeIds
+
+        assertFalse("Old MAC must NOT be in raw currentIds", oldMac in currentIds)
+        assertTrue("Composite match must include old MAC", oldMac in compositeIds)
+        assertTrue("effectiveCurrentIds must include old MAC, preventing DEVICE_GONE", oldMac in effectiveCurrentIds)
+    }
 }

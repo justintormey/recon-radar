@@ -80,6 +80,12 @@ class SignalBaseline(context: Context) {
             }
             .toMap()
 
+        // Baseline IDs confirmed present via composite key re-match this scan cycle.
+        // When a BLE MAC rotates, the old baseline ID won't appear in currentIds, but
+        // the physical device is still here — composite match is proof. Union these IDs
+        // into effectiveCurrentIds before the DEVICE_GONE loop to stop false alarms.
+        val compositeMatchedBaselineIds = mutableSetOf<String>()
+
         for (device in devices) {
             // Always check for known trackers
             val tracker = trackerDetector.analyze(device)
@@ -95,10 +101,17 @@ class SignalBaseline(context: Context) {
 
             // Primary lookup: exact MAC/BSSID match.
             // Fallback for BLE: composite key (name + service UUIDs) to survive MAC rotation.
-            val entry: BaselineEntry? = baseline[device.id]
+            val primaryEntry: BaselineEntry? = baseline[device.id]
+            val entry: BaselineEntry? = primaryEntry
                 ?: if (device.type == DetectedDevice.DeviceType.BLE)
                     bleStableKey(device.name, device.capabilities)?.let { bleStableIndex[it] }
                 else null
+
+            // Composite-only match: the physical device is present but its MAC rotated.
+            // Record the old baseline ID so DEVICE_GONE doesn't fire for it.
+            if (primaryEntry == null && entry != null) {
+                compositeMatchedBaselineIds.add(entry.id)
+            }
 
             if (entry == null) {
                 // Suppress NEW_DEVICE if KNOWN_TRACKER already fired — the tracker
@@ -143,10 +156,16 @@ class SignalBaseline(context: Context) {
             anomalies.addAll(detectRogueAps(devices, baseline.values))
         }
 
+        // Effective current IDs: live raw MACs + baseline IDs re-matched via composite key.
+        // Without this union, a rotated-MAC device's old baseline entry accumulates 3 misses
+        // and emits a spurious DEVICE_GONE. The composite match proves the device is still
+        // present, so its baseline ID must be treated as seen this cycle.
+        val effectiveCurrentIds = currentIds + compositeMatchedBaselineIds
+
         // Detect gone devices (3 consecutive misses to debounce)
         if (baseline.isNotEmpty()) {
             for ((id, entry) in baseline) {
-                if (id !in currentIds) {
+                if (id !in effectiveCurrentIds) {
                     val count = (goneCandidates[id] ?: 0) + 1
                     goneCandidates[id] = count
                     if (count >= 3) {
@@ -169,6 +188,35 @@ class SignalBaseline(context: Context) {
     }
 
     companion object {
+
+        /**
+         * Builds the set of baseline IDs confirmed present via composite stable-key
+         * re-match (not primary MAC match). Call this with the live device list and the
+         * already-computed [bleStableIndex] to find all baseline entries whose physical
+         * device is still advertising but under a rotated MAC.
+         *
+         * Returned IDs must be unioned into effectiveCurrentIds before the DEVICE_GONE
+         * debounce loop, otherwise the old baseline MAC accumulates misses and fires a
+         * spurious DEVICE_GONE after 3 scans.
+         *
+         * Pure function — no Android dependencies — safe to call in JVM unit tests.
+         */
+        fun compositeMatchedIds(
+            devices: List<DetectedDevice>,
+            baseline: Map<String, BaselineEntry>,
+            bleStableIndex: Map<String, BaselineEntry>
+        ): Set<String> {
+            val result = mutableSetOf<String>()
+            for (device in devices) {
+                if (device.type != DetectedDevice.DeviceType.BLE) continue
+                if (baseline.containsKey(device.id)) continue  // primary match — skip
+                val key = bleStableKey(device.name, device.capabilities) ?: continue
+                val entry = bleStableIndex[key] ?: continue
+                result.add(entry.id)
+            }
+            return result
+        }
+
 
         /**
          * Stable composite identity key for a BLE device.
