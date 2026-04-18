@@ -114,6 +114,17 @@ Detection uses three layers in priority order:
 - Added `location_services_off` string resource to `strings.xml`
 - Fixes silent `W:0` HUD with no explanation on Samsung One UI / Android 14 when Location is disabled
 
+**2026-04-18 — BLE MAC randomization false-positive suppression (issue #12)**
+- `SignalBaseline.BaselineEntry` gains `capabilities: String = ""` field (BLE service UUIDs stored at baseline-set time; default empty for backward compat with existing SharedPreferences data)
+- `setBaseline()` now persists `capabilities`; `saveToPrefs`/`loadFromPrefs` serialize/restore `${i}_caps`
+- `analyze()` builds a secondary `bleStableIndex: Map<String, BaselineEntry>` from BLE entries with stable composite keys, rebuilt each cycle
+- Two suppression mechanisms implemented:
+  1. **Tracker suppression** — if `KNOWN_TRACKER` fires, `NEW_DEVICE` is skipped (reduces noise for AirTag/SmartTag/Tile with rotating MACs)
+  2. **Composite-key re-match** — BLE device lookup falls back to `name|serviceUUIDs` key; rotating MAC on a named device (Galaxy Buds, Wear OS watch) re-matches baseline without generating NEW_DEVICE
+- New companion function `bleStableKey(name, capabilities)` — pure, testable without Context; returns non-null only when both name and service UUIDs are non-empty/non-placeholder
+- Added 8 new unit tests covering: stable key non-null, null-for-unnamed, null-for-empty-caps, composite key symmetry, BLE never triggers rogue AP, stable key requires both name+caps
+- Tracker detection NOT affected — operates on manufacturer data + service UUIDs, not MAC
+
 **2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
 - Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
 - Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)

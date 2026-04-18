@@ -29,7 +29,8 @@ class SignalBaseline(context: Context) {
         val type: DetectedDevice.DeviceType,
         val avgRssi: Int,
         val channel: Int,
-        val lastSeen: Long
+        val lastSeen: Long,
+        val capabilities: String = ""  // BLE service UUIDs or Wi-Fi security flags
     )
 
     init {
@@ -43,7 +44,8 @@ class SignalBaseline(context: Context) {
             baseline[d.id] = BaselineEntry(
                 id = d.id, name = d.name, type = d.type,
                 avgRssi = d.rssi, channel = d.channel,
-                lastSeen = d.timestamp
+                lastSeen = d.timestamp,
+                capabilities = d.capabilities
             )
         }
         saveToPrefs()
@@ -58,10 +60,25 @@ class SignalBaseline(context: Context) {
     /**
      * Compare current devices against baseline. Returns anomalies detected.
      * Also flags known trackers regardless of baseline status.
+     *
+     * BLE MAC randomization suppression (Android 14+):
+     *  1. Tracker suppression — if KNOWN_TRACKER fires, NEW_DEVICE is redundant noise.
+     *  2. Composite-key re-match — BLE devices with a stable name + service UUIDs are
+     *     re-matched against baseline entries by composite key so that a rotated MAC
+     *     doesn't generate a false NEW_DEVICE anomaly.
      */
     fun analyze(devices: List<DetectedDevice>): List<Anomaly> {
         val anomalies = mutableListOf<Anomaly>()
         val currentIds = devices.map { it.id }.toSet()
+
+        // Build a secondary index: stable composite key → baseline entry (BLE only).
+        // Used to re-match devices whose MAC rotated since the baseline was captured.
+        val bleStableIndex: Map<String, BaselineEntry> = baseline.values
+            .filter { it.type == DetectedDevice.DeviceType.BLE }
+            .mapNotNull { entry ->
+                bleStableKey(entry.name, entry.capabilities)?.let { key -> key to entry }
+            }
+            .toMap()
 
         for (device in devices) {
             // Always check for known trackers
@@ -76,14 +93,24 @@ class SignalBaseline(context: Context) {
 
             if (baseline.isEmpty()) continue
 
-            val entry = baseline[device.id]
+            // Primary lookup: exact MAC/BSSID match.
+            // Fallback for BLE: composite key (name + service UUIDs) to survive MAC rotation.
+            val entry: BaselineEntry? = baseline[device.id]
+                ?: if (device.type == DetectedDevice.DeviceType.BLE)
+                    bleStableKey(device.name, device.capabilities)?.let { bleStableIndex[it] }
+                else null
+
             if (entry == null) {
-                // New device not in baseline
-                anomalies.add(Anomaly(
-                    type = Anomaly.Type.NEW_DEVICE,
-                    device = device,
-                    detail = "${device.name} [${device.type.label}]"
-                ))
+                // Suppress NEW_DEVICE if KNOWN_TRACKER already fired — the tracker
+                // anomaly is the meaningful signal; NEW_DEVICE is noise for rotating MACs.
+                val isKnownTracker = tracker != null
+                if (!isKnownTracker) {
+                    anomalies.add(Anomaly(
+                        type = Anomaly.Type.NEW_DEVICE,
+                        device = device,
+                        detail = "${device.name} [${device.type.label}]"
+                    ))
+                }
                 if (device.isOpen) {
                     anomalies.add(Anomaly(
                         type = Anomaly.Type.OPEN_NETWORK,
@@ -142,6 +169,24 @@ class SignalBaseline(context: Context) {
     }
 
     companion object {
+
+        /**
+         * Stable composite identity key for a BLE device.
+         *
+         * Returns a non-null key only when BOTH the device name and service UUID
+         * string are non-empty and non-placeholder — combining them minimises
+         * collision risk across unrelated devices that might share a generic name.
+         *
+         * Used to re-match baseline entries after MAC rotation (Android 14 privacy
+         * feature) without requiring root or advertising-identity access.
+         */
+        fun bleStableKey(name: String, capabilities: String): String? {
+            val n = name.trim()
+            val c = capabilities.trim()
+            if (n.isEmpty() || n == "<unnamed>" || c.isEmpty()) return null
+            return "$n|$c"
+        }
+
         /**
          * Pure rogue-AP detection: given a list of live devices and a snapshot of
          * baseline entries, returns anomalies for any Wi-Fi device whose SSID matches
@@ -184,6 +229,7 @@ class SignalBaseline(context: Context) {
             editor.putInt("${i}_rssi", e.avgRssi)
             editor.putInt("${i}_ch", e.channel)
             editor.putLong("${i}_seen", e.lastSeen)
+            editor.putString("${i}_caps", e.capabilities)
         }
         editor.apply()
     }
@@ -200,7 +246,8 @@ class SignalBaseline(context: Context) {
                 } catch (_: Exception) { DetectedDevice.DeviceType.WIFI },
                 avgRssi = prefs.getInt("${i}_rssi", -70),
                 channel = prefs.getInt("${i}_ch", 0),
-                lastSeen = prefs.getLong("${i}_seen", 0L)
+                lastSeen = prefs.getLong("${i}_seen", 0L),
+                capabilities = prefs.getString("${i}_caps", "") ?: ""
             )
         }
     }
