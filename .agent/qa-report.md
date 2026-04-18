@@ -1,106 +1,104 @@
-# QA Report — Issue #9: BLE manufacturer company ID fix
+# QA Report — Issue #10: Add missing Gradle wrapper files
 
-**Commit reviewed:** `3fafcad`  
-**Date:** 2026-04-18  
+**Commit reviewed:** `b67403a`
+**Date:** 2026-04-18
 **Verdict:** ✅ APPROVED — no blocking findings
 
 ---
 
-## Files Changed
+## Problem Addressed
 
-| File | Change |
-|------|--------|
-| `BleScanner.kt` | `extractManufacturerData` returns `Pair<Int, ByteArray>?` instead of `ByteArray?` |
-| `DetectedDevice.kt` | Added `manufacturerCompanyId: Int? = null` field |
-| `TrackerDetector.kt` | Company-ID dispatch in `checkManufacturerData`; extracted `checkApplePayload()` |
-| `TrackerDetectorTest.kt` | 4 new company-ID unit tests |
-| `history.md` | Changelog entry |
-
----
-
-## Correctness
-
-### BleScanner — `extractManufacturerData`
-
-**Before:** `return sparseArray.valueAt(0)` — company ID (SparseArray key) silently dropped.  
-**After:** `return Pair(sparseArray.keyAt(0), sparseArray.valueAt(0))` — both ID and payload preserved.  
-✅ Fix is minimal and correct.
-
-### DetectedDevice — new field
-
-`manufacturerCompanyId: Int? = null` added with a null default. Kotlin data classes with default values are backward-compatible for named-argument call sites and serialized SharedPreferences data. No existing callers break.  
-✅ No regression.
-
-### TrackerDetector — company ID dispatch
-
-```kotlin
-if (companyId != null) {
-    when (companyId) {
-        SAMSUNG_COMPANY_ID -> return TrackerMatch(TrackerType.SAMSUNG_SMARTTAG, Confidence.HIGH)
-        TILE_COMPANY_ID    -> return TrackerMatch(TrackerType.TILE, Confidence.HIGH)
-        APPLE_COMPANY_ID   -> return checkApplePayload(data)
-        else               -> return null   // ← falls through to checkNamePatterns in analyze()
-    }
-}
+`gradlew` and `gradle/wrapper/gradle-wrapper.jar` were absent from the repository.
+The CI workflow (`.github/workflows/build-apk.yml`) runs both:
 ```
-
-- **Samsung / Tile:** definitive vendor ID → HIGH confidence. Correct.
-- **Apple:** requires payload inspection to distinguish AirTag vs other FindMy devices. Correct design — Apple ships 10+ products using the same company ID.
-- **Unknown company ID:** returns `null` from `checkManufacturerData`. `analyze()` then falls through to `checkNamePatterns()`, so name-based MEDIUM detection still fires. Correct — unknown manufacturer doesn't suppress the name path.
-
-✅ Logic is sound.
-
-### checkApplePayload extraction
-
-Old code guarded `if (data.size >= 3)` before Apple type check. New `checkApplePayload` guards `if (data.size < 3) return null`. Behavioral equivalence confirmed: a 2-byte payload previously fell through to `return null`; it now fails `checkApplePayload`'s guard. Same result.
-
-✅ Refactor is safe.
-
-### Legacy path (no company ID)
-
-Unit tests that construct a `DetectedDevice` without `manufacturerCompanyId` skip the company-ID branch and land on `checkApplePayload(data)` directly. The test `airtag-sized find my payload detected` uses this path and still passes. ✅
+chmod +x gradlew          # failed: file not found
+./gradlew assembleDebug   # failed: file not found
+```
+Result: zero APKs produced. On-device verification (issue #6) was blocked.
 
 ---
 
-## Test Coverage
+## Files Added by This Fix
 
-| Test | Path exercised | Status |
-|------|---------------|--------|
-| `samsung company ID 0x0075 detected as SmartTag HIGH` | New Samsung path | ✅ |
-| `tile company ID 0x010D detected as Tile HIGH` | New Tile path | ✅ |
-| `apple company ID 0x004C with find-my type byte detected as AirTag` | Apple company ID → checkApplePayload | ✅ |
-| `unknown company ID returns null from manufacturer data check` | `else -> return null`; name fallthrough | ✅ |
-| Pre-existing Apple payload tests | Legacy path unchanged | ✅ |
+| File | Size | Notes |
+|------|------|-------|
+| `gradlew` | 8,784 bytes | POSIX shell script, mode `0755` |
+| `gradle/wrapper/gradle-wrapper.jar` | 43,583 bytes | Bootstrap JAR |
 
-4 new tests added; all new code paths covered.
+`gradle/wrapper/gradle-wrapper.properties` was pre-existing (pinned to 8.11.1).
 
 ---
 
-## Interaction Analysis
+## Correctness Checks
 
-**Tile detected by service UUID AND company ID:** `checkServiceUuids` runs first in `analyze()`. A Tile device with both UUID `0000feed` and company ID `0x010D` hits the service UUID path (HIGH) and never reaches manufacturer data. Same result either way — no conflict.
+### 1. `gradlew` — executable bit
+```
+git ls-files --stage gradlew
+100755 d95bf6131dc41079a1665889f84d4cfec92a2bc1 0   gradlew
+```
+Git mode `100755` confirmed. The executable bit is preserved in the index and will survive checkout on any CI runner. CI's `chmod +x gradlew` step is now redundant but harmless. ✅
 
-**Samsung with name pattern fallback:** Samsung company ID fires HIGH via manufacturer data before name patterns are reached. If company ID is missing, name check still returns MEDIUM. Correct priority ladder.
+### 2. `gradlew` — content
+- POSIX `#!/bin/sh` shebang. ✅
+- Handles Cygwin / MSYS / Darwin / NonStop path translation. ✅
+- Invokes `org.gradle.wrapper.GradleWrapperMain` via `-classpath gradle/wrapper/gradle-wrapper.jar`. ✅
+- 252 lines matching the official Gradle v8.11.1 `gradlew` template. ✅
+
+### 3. `gradle-wrapper.jar` — structural integrity
+```
+file: Zip archive data, at least v2.0 to extract, compression method=deflate
+```
+JAR is a valid ZIP. ✅
+
+Internal entry confirmed present:
+```
+org/gradle/wrapper/GradleWrapperMain.class   (10,704 bytes)
+```
+The entry point class `gradlew` references is in the archive. ✅
+
+Size (43,583 bytes) is consistent with official Gradle wrapper JARs.
+
+SHA-256: `2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046`
+
+### 4. Version consistency
+`gradle-wrapper.properties`:
+```
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+```
+Matches the version described in the commit and the engineering report. ✅
+
+### 5. CI workflow compatibility
+`.github/workflows/build-apk.yml` runs on `ubuntu-latest` with JDK 17 (Temurin). Steps:
+1. `chmod +x gradlew` — will now succeed (file exists, executable bit already set). ✅
+2. `./gradlew assembleDebug --no-daemon` — wrapper will download Gradle 8.11.1 from services.gradle.org and build. ✅
+3. `upload-artifact` uploads `app/build/outputs/apk/debug/app-debug.apk`. ✅
+
+---
+
+## Findings
+
+### Low — `gradlew.bat` absent
+`gradlew.bat` (Windows wrapper) was not added. Not needed: CI runs on `ubuntu-latest` and the project is Android-only. If Windows dev support is ever desired, run `gradle wrapper --gradle-version 8.11.1` on Windows.
+
+**Not a blocker.** Low priority.
+
+### Low — No `distributionSha256Sum` in `gradle-wrapper.properties`
+Best practice for reproducible builds is to pin the SHA-256 of the distribution ZIP:
+```properties
+distributionSha256Sum=<sha256 of gradle-8.11.1-bin.zip>
+```
+This prevents a MITM from serving a tampered Gradle distribution. The official checksum is published at https://gradle.org/release-checksums/.
+
+**Not a blocker.** Low priority for a sideloadable personal tool, but recommended before any production hardening.
 
 ---
 
 ## Semver Gate
 
-Issue tagged **PATCH**. Assessment:
-- No public API changed (all modified methods are `private` or within `internal` data classes)
-- `DetectedDevice` new field has a default value — no call-site breakage
-- Behavior change is additive: detections that previously returned MEDIUM or nothing now return HIGH
-
-**PATCH is correct.** ✅
-
----
-
-## Issues Found
-
-None. No critical, high, medium, or low findings.
+This change adds missing build infrastructure — no app code changed, no API surface changed, no version bump required. ✅
 
 ---
 
 ## Sign-off
 
-Fix addresses the root cause precisely. Code is readable, tests are specific, and the legacy path is preserved with a clear comment. Ready to ship.
+The fix is minimal, correct, and unblocks CI. Both missing files are present, properly structured, and version-consistent with the pre-existing `gradle-wrapper.properties`. Two low-severity gaps noted (no `.bat`, no SHA pin) — neither affects CI or functionality. Ready to ship.
