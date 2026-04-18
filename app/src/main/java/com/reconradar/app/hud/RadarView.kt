@@ -80,6 +80,7 @@ class RadarView @JvmOverloads constructor(
     // -- State --
     private var sweepAngle = 0f
     private var devices = listOf<DetectedDevice>()
+    private var goneDevices = listOf<DetectedDevice>() // ghost stubs for DEVICE_GONE blips
     private var flaggedIds = mapOf<String, Int>() // id -> base color for anomaly/new/tracker
 
     private var cx = 0f
@@ -121,6 +122,15 @@ class RadarView @JvmOverloads constructor(
             }
         }
         this.flaggedIds = flags
+
+        // Collect ghost stubs from DEVICE_GONE anomalies so they get drawn even though
+        // they are absent from the live scan list. De-duplicate by device id so that
+        // repeated GONE anomalies in the accumulation buffer produce only one blip.
+        val liveIds = detected.map { it.id }.toSet()
+        this.goneDevices = anomalies
+            .filter { it.type == Anomaly.Type.DEVICE_GONE && it.device.id !in liveIds }
+            .distinctBy { it.device.id }
+            .map { it.device }
     }
 
     private fun priorityOf(color: Int): Int = when (color) {
@@ -198,7 +208,9 @@ class RadarView @JvmOverloads constructor(
 
     // ── Blips ─────────────────────────────────────────────────
     private fun drawDeviceBlips(c: Canvas) {
-        for (dev in devices) {
+        // Draw live devices followed by grey ghost stubs for gone devices.
+        // Combining them in one pass keeps the label/pulse logic DRY.
+        for (dev in devices + goneDevices) {
             val angRad = Math.toRadians((dev.radarAngle - 90).toDouble())
             val r = radius * dev.radarDistance
             val bx = cx + r * cos(angRad).toFloat()

@@ -125,6 +125,13 @@ Detection uses three layers in priority order:
 - Added 8 new unit tests covering: stable key non-null, null-for-unnamed, null-for-empty-caps, composite key symmetry, BLE never triggers rogue AP, stable key requires both name+caps
 - Tracker detection NOT affected — operates on manufacturer data + service UUIDs, not MAC
 
+**2026-04-18 — Fix DEVICE_GONE grey blips not rendered on radar (issue #16)**
+- `RadarView` gains a `goneDevices: List<DetectedDevice>` field populated inside `updateDevices()` from `DEVICE_GONE` anomalies
+- Ghost stubs are de-duplicated by device ID (accumulation buffer can hold many repeated GONE anomalies for the same device)
+- `drawDeviceBlips()` now iterates `devices + goneDevices` so ghost positions are plotted even though the device is absent from the live scan list
+- Existing grey rendering path (no pulse ring, static dim dot) works unchanged since `flaggedIds[id] == cGrey` for all gone devices
+- Zero API surface change — `MainActivity.onScanUpdate()` call site is unaffected
+
 **2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
 - Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
 - Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)
