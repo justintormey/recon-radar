@@ -102,6 +102,12 @@ Detection uses three layers in priority order:
 - Verified Android 14 compatibility: `RECEIVER_NOT_EXPORTED`, BLE permission guards, scan throttle pacing all correct
 - Added `.github/workflows/build-apk.yml` — CI produces `app-debug.apk` artifact on every push to `main`
 
+**2026-04-18 — Implement ROGUE_AP detection (issue #11)**
+- `SignalBaseline.analyze()` now generates `Anomaly.Type.ROGUE_AP` when a live Wi-Fi device presents a BSSID not in the baseline but an SSID that matches a known baseline entry
+- Detection logic extracted to `SignalBaseline.detectRogueAps()` companion function (pure Kotlin, no Android deps) enabling JVM unit testing without Context
+- Added `SignalBaselineTest` with 8 unit tests covering: positive detection, known BSSID suppression, different SSID no-trigger, BLE exclusion, blank SSID guard, empty baseline, empty device list, multi-rogue scan, and priority validation
+- `ROGUE_AP` is no longer dead code; enum variant is fully exercised
+
 **2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
 - Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
 - Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)

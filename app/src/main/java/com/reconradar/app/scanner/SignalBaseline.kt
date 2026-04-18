@@ -111,6 +111,11 @@ class SignalBaseline(context: Context) {
             }
         }
 
+        // Rogue AP: new BSSID advertising the same SSID as a known baseline AP
+        if (baseline.isNotEmpty()) {
+            anomalies.addAll(detectRogueAps(devices, baseline.values))
+        }
+
         // Detect gone devices (3 consecutive misses to debounce)
         if (baseline.isNotEmpty()) {
             for ((id, entry) in baseline) {
@@ -134,6 +139,39 @@ class SignalBaseline(context: Context) {
         }
 
         return anomalies
+    }
+
+    companion object {
+        /**
+         * Pure rogue-AP detection: given a list of live devices and a snapshot of
+         * baseline entries, returns anomalies for any Wi-Fi device whose SSID matches
+         * a known baseline entry but whose BSSID (id) differs.
+         *
+         * Extracted here so it can be exercised in JVM unit tests without a Context.
+         */
+        fun detectRogueAps(
+            devices: List<DetectedDevice>,
+            baselineEntries: Collection<BaselineEntry>
+        ): List<Anomaly> {
+            val anomalies = mutableListOf<Anomaly>()
+            val baselineIds = baselineEntries.map { it.id }.toSet()
+            for (device in devices) {
+                if (device.type != DetectedDevice.DeviceType.WIFI) continue
+                if (device.name.isBlank()) continue
+                if (device.id in baselineIds) continue  // already known BSSID — not rogue
+                val knownWithSameSsid = baselineEntries.find { b ->
+                    b.name == device.name && b.type == DetectedDevice.DeviceType.WIFI
+                }
+                if (knownWithSameSsid != null) {
+                    anomalies.add(Anomaly(
+                        type = Anomaly.Type.ROGUE_AP,
+                        device = device,
+                        detail = "SSID '${device.name}' seen on new BSSID ${device.id}"
+                    ))
+                }
+            }
+            return anomalies
+        }
     }
 
     private fun saveToPrefs() {
