@@ -9,4 +9,5 @@
     <string name="btn_baseline">SET BASE</string>
     <string name="btn_clear">CLR BASE</string>
     <string name="permission_rationale">Recon Radar needs location and Bluetooth access to scan nearby Wi-Fi and BLE signals. All processing is local — nothing leaves your device.</string>
+    <string name="location_services_off">Enable Location services for Wi-Fi scan</string>
 </resources>

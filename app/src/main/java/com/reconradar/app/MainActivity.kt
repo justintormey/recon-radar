@@ -2,6 +2,7 @@ package com.reconradar.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -123,6 +124,14 @@ class MainActivity : AppCompatActivity() {
 
     // ── Scanning ──────────────────────────────────────────────
     private fun beginScanning(bleAvailable: Boolean) {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (!locationManager.isLocationEnabled) {
+            scanning = false
+            statusText.text = getString(R.string.location_services_off)
+            Toast.makeText(this, getString(R.string.location_services_off), Toast.LENGTH_LONG).show()
+            return
+        }
+
         scanning = true
         radarView.startSweep()
         btnScan.text = getString(R.string.btn_pause)

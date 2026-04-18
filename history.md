@@ -108,6 +108,12 @@ Detection uses three layers in priority order:
 - Added `SignalBaselineTest` with 8 unit tests covering: positive detection, known BSSID suppression, different SSID no-trigger, BLE exclusion, blank SSID guard, empty baseline, empty device list, multi-rogue scan, and priority validation
 - `ROGUE_AP` is no longer dead code; enum variant is fully exercised
 
+**2026-04-18 — Warn user when system Location services are OFF (issue #13)**
+- `MainActivity.beginScanning()` now checks `LocationManager.isLocationEnabled` before starting any scanner
+- If Location toggle is OFF, sets status text to "Enable Location services for Wi-Fi scan" and shows a matching Toast; returns early without starting WifiScanner/BleScanner
+- Added `location_services_off` string resource to `strings.xml`
+- Fixes silent `W:0` HUD with no explanation on Samsung One UI / Android 14 when Location is disabled
+
 **2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
 - Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
 - Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)
