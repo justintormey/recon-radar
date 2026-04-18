@@ -12,7 +12,8 @@ data class DetectedDevice(
     val type: DeviceType,
     val frequency: Int = 0,          // Wi-Fi frequency in MHz (0 for BLE)
     val capabilities: String = "",   // Wi-Fi security flags or BLE service UUIDs
-    val manufacturerData: ByteArray? = null, // BLE manufacturer-specific data
+    val manufacturerData: ByteArray? = null, // BLE manufacturer-specific data payload
+    val manufacturerCompanyId: Int? = null,  // BLE company ID from SparseArray key
     val timestamp: Long = System.currentTimeMillis()
 ) {
     enum class DeviceType(val label: String) {

@@ -77,32 +77,42 @@ object TrackerDetector {
         val data = device.manufacturerData ?: return null
         if (data.size < 2) return null
 
-        // Manufacturer data in Android scan records doesn't include the company ID
-        // (it's already keyed by it in SparseArray). But we get the raw value bytes here.
-        // We check patterns in the payload itself.
-
-        // Apple Find My / AirTag detection:
-        // Apple advertisements use type 0x12 for Find My network, length varies
-        if (data.size >= 3) {
-            val type = data[0]
-            when (type) {
-                APPLE_FINDMY_TYPE -> {
-                    return if (data.size in 25..30) {
-                        // AirTag-sized Find My payload
-                        TrackerMatch(TrackerType.AIRTAG, Confidence.HIGH)
-                    } else {
-                        TrackerMatch(TrackerType.APPLE_FINDMY, Confidence.HIGH)
-                    }
-                }
-                APPLE_NEARBY_TYPE -> {
-                    // Apple Nearby interaction — not a tracker, but worth noting
-                    // as it reveals Apple device presence
-                    return null
-                }
+        // Company ID (SparseArray key) gives a definitive vendor match when present.
+        // Fall through to Apple payload inspection only for 0x004C since that company
+        // makes multiple products and we need content analysis to distinguish AirTag
+        // from other Find My devices.
+        val companyId = device.manufacturerCompanyId
+        if (companyId != null) {
+            when (companyId) {
+                SAMSUNG_COMPANY_ID -> return TrackerMatch(TrackerType.SAMSUNG_SMARTTAG, Confidence.HIGH)
+                TILE_COMPANY_ID    -> return TrackerMatch(TrackerType.TILE, Confidence.HIGH)
+                APPLE_COMPANY_ID   -> return checkApplePayload(data)
+                else               -> return null
             }
         }
 
-        return null
+        // Legacy path: no company ID stored (e.g. unit tests that pass raw bytes).
+        // Inspect Apple-style type bytes in the payload.
+        return checkApplePayload(data)
+    }
+
+    private fun checkApplePayload(data: ByteArray): TrackerMatch? {
+        if (data.size < 3) return null
+        return when (data[0]) {
+            APPLE_FINDMY_TYPE -> {
+                if (data.size in 25..30) {
+                    // AirTag-sized Find My payload
+                    TrackerMatch(TrackerType.AIRTAG, Confidence.HIGH)
+                } else {
+                    TrackerMatch(TrackerType.APPLE_FINDMY, Confidence.HIGH)
+                }
+            }
+            APPLE_NEARBY_TYPE -> {
+                // Apple Nearby interaction — not a tracker, but reveals Apple device presence
+                null
+            }
+            else -> null
+        }
     }
 
     private fun checkNamePatterns(device: DetectedDevice): TrackerMatch? {

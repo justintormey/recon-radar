@@ -88,6 +88,13 @@ Detection uses three layers in priority order:
 - Added `history.md` (this file)
 - Added `testImplementation` dependencies to `app/build.gradle.kts`
 
+**2026-04-18 — BLE company ID fix: SmartTag/Tile HIGH-confidence detection (issue #9)**
+- `BleScanner.extractManufacturerData` now returns `Pair<Int, ByteArray>?` (company ID + payload) instead of discarding the SparseArray key
+- Added `manufacturerCompanyId: Int?` field to `DetectedDevice`
+- `TrackerDetector.checkManufacturerData` dispatches on company ID first: Samsung `0x0075` → SmartTag HIGH, Tile `0x010D` → Tile HIGH, Apple `0x004C` → `checkApplePayload()` for AirTag vs FindMy distinction
+- Extracted `checkApplePayload()` helper; legacy path (no company ID, e.g. tests with raw bytes) falls through to it unchanged
+- Added 4 new unit tests covering Samsung/Tile/Apple company ID paths and unknown-company-ID null return
+
 **2026-04-17 — XReal removal + sideloadable APK pipeline (issue #2)**
 - Deleted `XRealPresentation.kt` entirely
 - Stripped all XReal state/methods from `MainActivity` (display listener, attach/detach, mirroring calls)

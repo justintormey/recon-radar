@@ -95,7 +95,7 @@ class BleScanner(private val context: Context) {
             null
         } ?: result.scanRecord?.deviceName ?: ""
 
-        val mfgData = extractManufacturerData(result.scanRecord?.manufacturerSpecificData)
+        val mfgPair = extractManufacturerData(result.scanRecord?.manufacturerSpecificData)
         val serviceUuids = result.scanRecord?.serviceUuids
             ?.joinToString(",") { it.toString() } ?: ""
 
@@ -106,7 +106,8 @@ class BleScanner(private val context: Context) {
                 rssi = result.rssi,
                 type = DetectedDevice.DeviceType.BLE,
                 capabilities = serviceUuids,
-                manufacturerData = mfgData
+                manufacturerData = mfgPair?.second,
+                manufacturerCompanyId = mfgPair?.first
             )
         }
     }
@@ -126,9 +127,9 @@ class BleScanner(private val context: Context) {
         }, 2_000)
     }
 
-    private fun extractManufacturerData(sparseArray: SparseArray<ByteArray>?): ByteArray? {
+    private fun extractManufacturerData(sparseArray: SparseArray<ByteArray>?): Pair<Int, ByteArray>? {
         if (sparseArray == null || sparseArray.size() == 0) return null
-        // Return the first manufacturer data block
-        return sparseArray.valueAt(0)
+        // Preserve company ID (SparseArray key) alongside the payload bytes
+        return Pair(sparseArray.keyAt(0), sparseArray.valueAt(0))
     }
 }

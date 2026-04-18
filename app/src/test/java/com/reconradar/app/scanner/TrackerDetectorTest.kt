@@ -8,15 +8,20 @@ class TrackerDetectorTest {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun ble(name: String = "", caps: String = "", mfg: ByteArray? = null) =
-        DetectedDevice(
-            id = "aa:bb:cc:dd:ee:ff",
-            name = name,
-            rssi = -70,
-            type = DetectedDevice.DeviceType.BLE,
-            capabilities = caps,
-            manufacturerData = mfg
-        )
+    private fun ble(
+        name: String = "",
+        caps: String = "",
+        mfg: ByteArray? = null,
+        companyId: Int? = null
+    ) = DetectedDevice(
+        id = "aa:bb:cc:dd:ee:ff",
+        name = name,
+        rssi = -70,
+        type = DetectedDevice.DeviceType.BLE,
+        capabilities = caps,
+        manufacturerData = mfg,
+        manufacturerCompanyId = companyId
+    )
 
     private fun wifi() = DetectedDevice(
         id = "11:22:33:44:55:66",
@@ -74,6 +79,38 @@ class TrackerDetectorTest {
 
     @Test fun `manufacturer data too short returns null`() {
         assertNull(TrackerDetector.analyze(ble(mfg = byteArrayOf(0x12))))
+    }
+
+    // ── Company ID matching (high confidence) ─────────────────────────────────
+
+    @Test fun `samsung company ID 0x0075 detected as SmartTag HIGH`() {
+        val payload = ByteArray(4) // minimal payload
+        val result = TrackerDetector.analyze(ble(mfg = payload, companyId = 0x0075))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.SAMSUNG_SMARTTAG, result!!.trackerType)
+        assertEquals(TrackerDetector.Confidence.HIGH, result.confidence)
+    }
+
+    @Test fun `tile company ID 0x010D detected as Tile HIGH`() {
+        val payload = ByteArray(4)
+        val result = TrackerDetector.analyze(ble(mfg = payload, companyId = 0x010D))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.TILE, result!!.trackerType)
+        assertEquals(TrackerDetector.Confidence.HIGH, result.confidence)
+    }
+
+    @Test fun `apple company ID 0x004C with find-my type byte detected as AirTag`() {
+        val payload = ByteArray(27)
+        payload[0] = 0x12.toByte()
+        val result = TrackerDetector.analyze(ble(mfg = payload, companyId = 0x004C))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.AIRTAG, result!!.trackerType)
+        assertEquals(TrackerDetector.Confidence.HIGH, result.confidence)
+    }
+
+    @Test fun `unknown company ID returns null from manufacturer data check`() {
+        val payload = ByteArray(4)
+        assertNull(TrackerDetector.analyze(ble(mfg = payload, companyId = 0x1234)))
     }
 
     // ── Name pattern matching (lower confidence) ──────────────────────────────
