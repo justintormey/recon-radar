@@ -1,3 +1,86 @@
+# QA Report — Issue #13: Location services OFF gives no feedback
+
+**Reviewed commit:** `1403cbd` — "fix: warn user when system Location services are OFF (issue #13)"
+**Files changed:** `MainActivity.kt`, `strings.xml`, `history.md`
+**Date:** 2026-04-18
+
+---
+
+## Verdict: ✅ APPROVE — ship as-is
+
+No blocking issues. One medium finding (deep link to Settings) and one low finding (semver) documented below; neither blocks merge.
+
+---
+
+## Findings
+
+### ✅ Correctness
+
+`LocationManager.isLocationEnabled` is the correct API to check the OS-level Location toggle. This is distinct from `ACCESS_FINE_LOCATION` permission — the silent-empty-results bug on Samsung One UI / Android 14 exists precisely because permission was granted but the toggle was off. The fix intercepts this at the right level.
+
+Check fires in `beginScanning()` — the single entry point for both the auto-start path (`onCreate` → `requestPermissionsAndStart`) and the button press path (`btnScan.setOnClickListener`). Full coverage of both trigger paths.
+
+### ✅ API level
+
+`LocationManager.isLocationEnabled` added in API 28. `minSdk = 29`. No API-level guard required — correct.
+
+### ✅ State consistency
+
+`scanning = false` is set before returning early, keeping the scan button in "SCAN" state. If this were missing, the button would still say "SCAN" (it was never set to "PAUSE"), so the state wouldn't be visibly wrong — but setting it explicitly is still correct defensive practice.
+
+### ✅ UI feedback
+
+Both `statusText` and a `Toast` are updated. Matches exactly what issue #13 required. Toast uses `LENGTH_LONG` — appropriate for an actionable message.
+
+### ✅ BLE also blocked when Location is OFF
+
+The early return prevents both `WifiScanner.start()` and `BleScanner.start()`. This is correct: BLE scanning also requires Location services enabled on Android. Showing `W:0 B:5` when Wi-Fi was blocked but BLE wasn't would be confusing.
+
+### ✅ String resource
+
+`location_services_off` defined in `strings.xml`. Text: `"Enable Location services for Wi-Fi scan"` — clear, actionable, matches issue spec verbatim.
+
+---
+
+## Medium findings (fix before next release)
+
+### M1 — No Settings deep link
+
+**Severity:** Medium
+**Location:** `MainActivity.kt:128-133`
+
+The Toast and status text tell the user what's wrong but provide no way to act. Android provides an intent to open the Location settings screen directly:
+
+```kotlin
+startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+```
+
+A small "Go to Settings" action button next to the status text, or an AlertDialog with an action, would significantly improve UX. The issue only required a Toast, so this is not a blocker for this PR, but worth a follow-up issue.
+
+---
+
+## Low findings
+
+### L1 — Semver not bumped
+
+`versionName` stays `1.0.0`. This is a user-visible bug fix. Proper semver = `1.0.1`. However, no release artifacts have been published under 1.0.0 and this is a pre-release sideload project, so no urgency.
+
+### L2 — No instrumented test
+
+MainActivity can't be unit tested with JVM (requires Android runtime). Given the app's test philosophy (pure JVM tests only, no emulator), this is expected. The behavior is simple enough to verify manually.
+
+### L3 — Mid-scan Location toggle not handled
+
+If the user starts scanning successfully, then disables Location in Quick Settings while the app is running, `WifiScanner` will begin returning empty results silently — the same root problem, just in a different phase. This is out of scope for issue #13 but worth a separate follow-up issue. Would require listening to `LocationManager.PROVIDERS_CHANGED_ACTION` broadcast to detect the toggle change at runtime.
+
+---
+
+## Semver gate
+
+No version bump present. Issue #13 is a user-visible bug fix — PATCH per semver (`1.0.0` → `1.0.1`). No breaking changes. Acceptable for a pre-release sideload with no published artifacts.
+
+---
+
 # QA Report — Issue #10: Add missing Gradle wrapper files
 
 **Commit reviewed:** `b67403a`
