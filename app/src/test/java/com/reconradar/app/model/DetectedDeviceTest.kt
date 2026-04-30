@@ -92,4 +92,52 @@ class DetectedDeviceTest {
         val far = wifi(rssi = -80).approxMeters
         assertTrue("close=$close should be < far=$far", close < far)
     }
+
+    @Test fun `ble approxMeters uses different txPower from wifi — same rssi produces different distance`() {
+        val wifiDist = wifi(rssi = -60).approxMeters
+        val bleDist  = ble(rssi = -60).approxMeters
+        // BLE uses txPower=-59, n=2.0; Wi-Fi uses txPower=-40, n=2.7 — must differ
+        assertNotEquals(wifiDist, bleDist, 0.001)
+    }
+
+    // ── Radar angle ───────────────────────────────────────────────────────────
+
+    @Test fun `radarAngle is in [0, 360)`() {
+        listOf(wifi(), ble()).forEach { d ->
+            val angle = d.radarAngle
+            assertTrue("radarAngle $angle out of range", angle >= 0f && angle < 360f)
+        }
+    }
+
+    @Test fun `radarAngle is deterministic for a given id`() {
+        val a = wifi(id = "11:22:33:44:55:66").radarAngle
+        val b = wifi(id = "11:22:33:44:55:66", rssi = -90).radarAngle
+        assertEquals("Same id must produce same angle regardless of rssi", a, b, 0f)
+    }
+
+    @Test fun `different ids produce different angles`() {
+        val a = wifi(id = "aa:bb:cc:dd:ee:01").radarAngle
+        val b = wifi(id = "aa:bb:cc:dd:ee:02").radarAngle
+        // Extremely unlikely (1-in-360 chance) for two sequential MACs to collide
+        assertNotEquals("Distinct IDs should (almost certainly) produce distinct angles", a, b, 0f)
+    }
+
+    // ── Frequency edge cases ──────────────────────────────────────────────────
+
+    @Test fun `frequency outside 2.4GHz and 5GHz bands returns channel 0`() {
+        // 6 GHz band (6000 MHz) is not handled — returns 0
+        assertEquals(0, wifi(freq = 6000).channel)
+    }
+
+    @Test fun `frequency 0 (BLE) returns channel 0`() =
+        assertEquals(0, ble().channel)
+
+    // ── BLE radar distance clamping ───────────────────────────────────────────
+
+    @Test fun `ble radarDistance is clamped between 0 and 1`() {
+        listOf(-10, -40, -70, -100, -120).forEach { rssi ->
+            val d = ble(rssi = rssi).radarDistance
+            assertTrue("BLE radarDistance $d out of range for rssi=$rssi", d in 0f..1f)
+        }
+    }
 }

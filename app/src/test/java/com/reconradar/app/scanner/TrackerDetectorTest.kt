@@ -153,6 +153,79 @@ class TrackerDetectorTest {
         assertEquals(TrackerDetector.TrackerType.GENERIC_BEACON, result!!.trackerType)
     }
 
+    // ── Apple payload edge cases ──────────────────────────────────────────────
+
+    @Test fun `apple company ID with 2-byte payload returns null — too short for checkApplePayload`() {
+        // checkManufacturerData passes (size >= 2), but checkApplePayload requires size >= 3
+        val payload = ByteArray(2)
+        payload[0] = 0x12.toByte()
+        assertNull(TrackerDetector.analyze(ble(mfg = payload, companyId = 0x004C)))
+    }
+
+    @Test fun `unknown apple type byte returns null`() {
+        // Not 0x12 (FindMy) or 0x10 (Nearby) — no tracker match
+        val payload = ByteArray(5)
+        payload[0] = 0xAB.toByte()
+        assertNull(TrackerDetector.analyze(ble(mfg = payload, companyId = 0x004C)))
+    }
+
+    @Test fun `apple airtag boundary — exactly 25 bytes is AirTag`() {
+        val payload = ByteArray(25)
+        payload[0] = 0x12.toByte()
+        val result = TrackerDetector.analyze(ble(mfg = payload))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.AIRTAG, result!!.trackerType)
+    }
+
+    @Test fun `apple airtag boundary — exactly 30 bytes is AirTag`() {
+        val payload = ByteArray(30)
+        payload[0] = 0x12.toByte()
+        val result = TrackerDetector.analyze(ble(mfg = payload))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.AIRTAG, result!!.trackerType)
+    }
+
+    @Test fun `apple airtag boundary — 31 bytes is FindMy not AirTag`() {
+        val payload = ByteArray(31)
+        payload[0] = 0x12.toByte()
+        val result = TrackerDetector.analyze(ble(mfg = payload))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.APPLE_FINDMY, result!!.trackerType)
+    }
+
+    // ── Name patterns — additional coverage ──────────────────────────────────
+
+    @Test fun `name containing 'findmy' detected as apple findmy LOW`() {
+        val result = TrackerDetector.analyze(ble(name = "FindMy device"))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.APPLE_FINDMY, result!!.trackerType)
+        assertEquals(TrackerDetector.Confidence.LOW, result.confidence)
+    }
+
+    @Test fun `name containing 'ibeacon' detected as generic beacon`() {
+        val result = TrackerDetector.analyze(ble(name = "MyiBeacon"))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.GENERIC_BEACON, result!!.trackerType)
+    }
+
+    @Test fun `name check is case-insensitive — SMARTTAG uppercase detected`() {
+        val result = TrackerDetector.analyze(ble(name = "SAMSUNG SMARTTAG2"))
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.SAMSUNG_SMARTTAG, result!!.trackerType)
+    }
+
+    // ── Priority ordering — service UUID beats name ───────────────────────────
+
+    @Test fun `tile service UUID takes priority over generic name`() {
+        // Device named "Beacon" but has Tile service UUID → UUID match wins (HIGH vs LOW)
+        val result = TrackerDetector.analyze(
+            ble(name = "Beacon", caps = "uuid:0000feed-0000-1000-8000-00805f9b34fb")
+        )
+        assertNotNull(result)
+        assertEquals(TrackerDetector.TrackerType.TILE, result!!.trackerType)
+        assertEquals(TrackerDetector.Confidence.HIGH, result.confidence)
+    }
+
     // ── No-match cases ────────────────────────────────────────────────────────
 
     @Test fun `unknown ble device returns null`() {

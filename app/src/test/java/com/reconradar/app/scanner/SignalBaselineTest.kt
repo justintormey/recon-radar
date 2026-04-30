@@ -294,6 +294,49 @@ class SignalBaselineTest {
         assertTrue("Primary MAC match should not appear in composite matched set", matched.isEmpty())
     }
 
+    // ── bleStableKey whitespace edge cases ────────────────────────────────────
+
+    @Test
+    fun `bleStableKey returns null when name is whitespace-only`() {
+        assertNull(SignalBaseline.bleStableKey("   ", "0000fd6f-0000-1000-8000-00805f9b34fb"))
+    }
+
+    @Test
+    fun `bleStableKey returns null when caps are whitespace-only`() {
+        assertNull(SignalBaseline.bleStableKey("Galaxy Buds2", "   "))
+    }
+
+    @Test
+    fun `bleStableKey output includes both name and caps as distinct components`() {
+        val key = SignalBaseline.bleStableKey("MyDevice", "0000fd6f-uuid")
+        assertNotNull(key)
+        // Key format is "name|caps" — both parts must be recoverable to avoid collisions
+        assertTrue("Key must contain name", key!!.contains("MyDevice"))
+        assertTrue("Key must contain caps", key.contains("0000fd6f-uuid"))
+    }
+
+    @Test
+    fun `bleStableKey collision guard — same name different caps produce different keys`() {
+        val k1 = SignalBaseline.bleStableKey("Device", "0000feed-uuid-tile")
+        val k2 = SignalBaseline.bleStableKey("Device", "0000fe33-uuid-chipolo")
+        assertNotEquals("Different service UUIDs must not produce identical stable keys", k1, k2)
+    }
+
+    // ── compositeMatchedIds — WIFI devices excluded ───────────────────────────
+
+    @Test
+    fun `compositeMatchedIds ignores Wi-Fi devices even if MAC differs`() {
+        // Wi-Fi devices should never go through the BLE composite-key re-match path
+        val entry = baselineEntry("aa:bb:cc:dd:ee:01", "HomeNetwork")
+        val baseline = mapOf("aa:bb:cc:dd:ee:01" to entry)
+        val stableIndex = emptyMap<String, SignalBaseline.BaselineEntry>() // no BLE entries
+        val liveDevices = listOf(wifiDevice("ff:ee:dd:cc:bb:01", "HomeNetwork"))
+
+        val matched = SignalBaseline.compositeMatchedIds(liveDevices, baseline, stableIndex)
+
+        assertTrue("Wi-Fi devices must not appear in composite matched set", matched.isEmpty())
+    }
+
     @Test
     fun `effectiveCurrentIds union of compositeMatchedIds prevents DEVICE_GONE false alarm`() {
         // Simulate: baseline has old MAC; live scan shows rotated MAC with same name+caps.
