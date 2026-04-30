@@ -146,6 +146,13 @@ Detection uses three layers in priority order:
 - Existing grey rendering path (no pulse ring, static dim dot) works unchanged since `flaggedIds[id] == cGrey` for all gone devices
 - Zero API surface change — `MainActivity.onScanUpdate()` call site is unaffected
 
+**2026-04-30 — Expand JVM unit test coverage (issue #4)**
+- Added `AnomalyTest` — covers `isHighPriority` for all 7 anomaly types, enum label/priority contract, structural properties
+- Extended `DetectedDeviceTest` — `radarAngle` range/determinism, frequency edge cases (6 GHz → channel 0), BLE radar distance clamping, BLE vs Wi-Fi `approxMeters` model difference
+- Extended `TrackerDetectorTest` — Apple payload size=2 null path, unknown Apple type byte, AirTag boundary cases (25/30/31 bytes), `findmy`/`ibeacon` name patterns, case-insensitive name detection, service UUID priority over name
+- Extended `SignalBaselineTest` — `bleStableKey` whitespace-only inputs, collision guard, key structure; `compositeMatchedIds` Wi-Fi exclusion
+- All new tests remain pure JVM — no Android Context, no emulator required
+
 **2026-04-18 — Fix missing Gradle wrapper files (issue #10)**
 - Added `gradlew` shell script (Gradle 8.11.1, sourced from official Gradle v8.11.1 GitHub tag)
 - Added `gradle/wrapper/gradle-wrapper.jar` binary (43 KB bootstrap jar, same version)
