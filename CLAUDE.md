@@ -143,7 +143,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/): `MAJOR.MI
 - Pre-1.0 (`0.y.z`): breaking → MINOR, everything else → PATCH; new projects start at `0.1.0`
 
 In the SAME commit as the change, update the version everywhere it appears:
-1. **Source of truth** — whatever this repo uses (`package.json`, `VERSION`, `Info.plist`/`project.yml` `MARKETING_VERSION`, `pyproject.toml`, site footer constant). If none exists yet, create a root `VERSION` file at `0.1.0` and wire displays to it.
+1. **Source of truth** — whatever this repo uses (`package.json`, `VERSION`, `Info.plist`/`project.yml` `MARKETING_VERSION`, `pyproject.toml`, site footer constant). If none exists yet, create a root `VERSION` file at `0.1.0`.
 2. **Documentation** — add a `CHANGELOG.md` entry (create the file if missing); update README/docs anywhere a version is stated.
-3. **User interface** — every surface that displays a version (About screen, footer, settings, CLI `--version`) must read from the single source of truth, never a second hardcoded copy.
+3. **User interface** — not every UI displays a version and that's fine; never add one where none exists. Any surface that already shows a version (About screen, footer, settings, CLI `--version`) must be correct — reading from the single source of truth, never a second hardcoded copy.
 4. **GitHub** — tag the release commit `vX.Y.Z` and push the tag with the branch (GitHub Releases for MAJOR/MINOR on repos that use them).
