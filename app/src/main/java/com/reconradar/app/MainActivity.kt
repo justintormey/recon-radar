@@ -7,6 +7,7 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
@@ -14,6 +15,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.reconradar.app.hud.HudOverlayView
 import com.reconradar.app.hud.RadarView
 import com.reconradar.app.model.Anomaly
@@ -40,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var allAnomalies = mutableListOf<Anomaly>()
     private var scanning = false
     private var locationSettingsLaunched = false
+    private var selectedId: String? = null // R1 scroll-wheel jog-dial selection
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -61,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
+        enableImmersive()
 
         radarView = findViewById(R.id.radar_view)
         hudOverlay = findViewById(R.id.hud_overlay)
@@ -97,6 +103,61 @@ class MainActivity : AppCompatActivity() {
             refreshHud(wifiDevices + bleDevices)
             statusText.text = "BASELINE CLEARED"
         }
+    }
+
+    // ── R1 hardware: scroll wheel (jog dial) + immersive full-screen ──
+    private fun enableImmersive() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) enableImmersive()
+    }
+
+    // The R1 scroll wheel emits DPAD_UP / DPAD_DOWN. Use it as a jog dial to cycle a
+    // highlighted device; its live signal shows in the status line, so you can dial to a
+    // suspicious tracker and walk toward it watching the RSSI climb. Consumed here so the
+    // key never leaks into view focus navigation. (The side button is the power key.)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                cycleSelection(if (code == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1)
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun sortedDevices(): List<DetectedDevice> =
+        (wifiDevices + bleDevices).sortedBy { it.id }
+
+    private fun cycleSelection(delta: Int) {
+        val list = sortedDevices()
+        if (list.isEmpty()) return
+        val cur = list.indexOfFirst { it.id == selectedId }
+        val next = if (cur < 0) (if (delta > 0) 0 else list.size - 1)
+                   else (((cur + delta) % list.size) + list.size) % list.size
+        selectedId = list[next].id
+        radarView.setSelected(selectedId)
+        showSelectedInfo(list)
+    }
+
+    /** Show the selected device's live signal, or clear the selection if it vanished. */
+    private fun showSelectedInfo(list: List<DetectedDevice> = sortedDevices()) {
+        val dev = list.firstOrNull { it.id == selectedId }
+        if (dev == null) {
+            selectedId = null
+            radarView.setSelected(null)
+            return
+        }
+        val band = if (dev.wifiBand.isNotEmpty()) "  ${dev.wifiBand}" else ""
+        statusText.text = "▶ ${dev.name}  ${dev.rssi}dBm$band"
     }
 
     // ── Permissions ───────────────────────────────────────────
@@ -188,6 +249,9 @@ class MainActivity : AppCompatActivity() {
         if (trackers > 0) parts.add("$trackers TRACKERS")
         if (otherAnom > 0) parts.add("$otherAnom ANOM")
         statusText.text = parts.joinToString(" | ")
+
+        // Keep the scroll-wheel selection readout live (RSSI updates as you move).
+        if (selectedId != null) showSelectedInfo()
     }
 
     private fun refreshHud(all: List<DetectedDevice>) {
