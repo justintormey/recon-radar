@@ -76,12 +76,19 @@ class RadarView @JvmOverloads constructor(
     private val centerCross = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = cGreen; style = Paint.Style.STROKE; strokeWidth = 1f
     }
+    private val selectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = 2f
+    }
 
     // -- State --
     private var sweepAngle = 0f
     private var devices = listOf<DetectedDevice>()
     private var goneDevices = listOf<DetectedDevice>() // ghost stubs for DEVICE_GONE blips
     private var flaggedIds = mapOf<String, Int>() // id -> base color for anomaly/new/tracker
+    private var selectedId: String? = null // scroll-wheel jog-dial selection (R1 hardware)
+
+    /** Highlight one device by id (null clears). Driven by the R1 scroll wheel. */
+    fun setSelected(id: String?) { selectedId = id; invalidate() }
 
     private var cx = 0f
     private var cy = 0f
@@ -244,8 +251,19 @@ class RadarView @JvmOverloads constructor(
                 c.drawCircle(bx, by, pr, blipRing)
             }
 
-            // Label for nearby or flagged devices
-            if (dev.rssi > -60 || flagColor != null) {
+            // Scroll-wheel selection: white reticle + always-on label (drawn on top)
+            if (dev.id == selectedId) {
+                val rr = blipSize + 7f
+                c.drawCircle(bx, by, rr, selectPaint)
+                c.drawLine(bx - rr - 4, by, bx - rr, by, selectPaint)
+                c.drawLine(bx + rr, by, bx + rr + 4, by, selectPaint)
+                c.drawLine(bx, by - rr - 4, bx, by - rr, selectPaint)
+                c.drawLine(bx, by + rr, bx, by + rr + 4, selectPaint)
+                val lbl = dev.name.let { if (it.length > 14) it.take(14) + ".." else it }
+                labelPaint.color = 0xFFFFFFFF.toInt()
+                c.drawText(lbl, bx + rr + 4, by - 3, labelPaint)
+            } else if (dev.rssi > -60 || flagColor != null) {
+                // Label for nearby or flagged devices
                 val lbl = dev.name.let { if (it.length > 14) it.take(14) + ".." else it }
                 labelPaint.color = withAlpha(baseColor, (brightness * 180).toInt().coerceIn(30, 180))
                 c.drawText(lbl, bx + blipSize + 4, by - 3, labelPaint)

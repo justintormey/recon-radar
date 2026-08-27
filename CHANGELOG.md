@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-08-26
+
+Hardware-control support for the Rabbit R1 running LineageOS (the "jackrabbit" build), plus full-screen immersive mode. Both are device-agnostic and harmless on a phone.
+
+- **Scroll-wheel jog dial:** the R1's scroll wheel emits `DPAD_UP` / `DPAD_DOWN`; `MainActivity.dispatchKeyEvent` consumes them to cycle a highlighted device. The selection draws a white reticle + label on the radar (`RadarView.setSelected`), and the status line shows that device's live RSSI so you can dial to a suspicious tracker and walk toward it watching the signal climb. (The R1's only button is the power key, so it is intentionally left alone.)
+- **Immersive full-screen:** hides the system status/nav bars via `WindowInsetsControllerCompat` (the old `policy_control` setting is ignored on this LineageOS GSI). Reclaims the whole 480x640 screen for the radar; swipe to reveal the bars transiently.
+
 ## [1.0.0] - 2026-08-18
 
 SemVer baseline established.
